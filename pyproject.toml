@@ -32,7 +32,7 @@ dependencies = ["numpy<2", "opencv-python", "numba", "scipy"]
 
 [project.optional-dependencies]
 cpu = ["onnxruntime>=1.20.0,<=1.22.0"]
-gpu = ["onnxruntime-gpu>=1.20.0,<=1.22.0"]
+cuda = ["onnxruntime-gpu>=1.20.0,<=1.22.0"]
 all = ["onnxruntime>=1.20.0,<=1.22.0"]
 dev = ["pytest", "black", "isort", "mypy"]
 

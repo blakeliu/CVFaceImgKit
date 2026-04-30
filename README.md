@@ -32,7 +32,7 @@ uv pip install -e .[cuda]
 ```shell
 uv sync --extra cpu
 ```
-### cuda
+### gpu/cuda
 ```shell
 uv sync --extra cuda
 ```

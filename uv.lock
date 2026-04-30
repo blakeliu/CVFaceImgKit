@@ -274,6 +274,9 @@ all = [
 cpu = [
     { name = "onnxruntime" },
 ]
+cuda = [
+    { name = "onnxruntime-gpu" },
+]
 dev = [
     { name = "black", version = "24.8.0", source = { registry = "https://mirrors.aliyun.com/pypi/simple" }, marker = "python_full_version < '3.9'" },
     { name = "black", version = "25.11.0", source = { registry = "https://mirrors.aliyun.com/pypi/simple" }, marker = "python_full_version == '3.9.*'" },
@@ -300,12 +303,13 @@ requires-dist = [
     { name = "numpy", specifier = "<2" },
     { name = "onnxruntime", marker = "extra == 'all'", specifier = ">=1.20.0,<=1.22.0" },
     { name = "onnxruntime", marker = "extra == 'cpu'", specifier = ">=1.20.0,<=1.22.0" },
+    { name = "onnxruntime-gpu", marker = "extra == 'cuda'", specifier = ">=1.20.0,<=1.22.0" },
     { name = "onnxruntime-gpu", marker = "extra == 'gpu'", specifier = ">=1.20.0,<=1.22.0" },
     { name = "opencv-python" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "scipy" },
 ]
-provides-extras = ["cpu", "gpu", "all", "dev"]
+provides-extras = ["cpu", "gpu", "cuda", "all", "dev"]
 
 [[package]]
 name = "flatbuffers"
