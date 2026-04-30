@@ -44,8 +44,11 @@ dev = ["pytest", "black", "isort", "mypy"]
 version = { attr = "faceimagekit.version.__version__" }
 
 [tool.setuptools]
-packages = ["faceimagekit"]
 include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["faceimagekit*"]
+exclude = ["converters*", "examples*"]
 
 [[tool.uv.index]]
 name = "aliyun-pypi"
