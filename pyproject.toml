@@ -17,6 +17,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: GNU Affero General Public License v3",
     "Operating System :: OS Independent",
     "Development Status :: 5 - Production/Stable",
@@ -28,7 +29,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Computer Vision",
     "Topic :: Face Analysis :: General",
 ]
-dependencies = ["numpy<2", "opencv-python", "numba", "scipy"]
+dependencies = ["numpy", "opencv-python", "numba", "scipy"]
 
 [project.optional-dependencies]
 cpu = ["onnxruntime>=1.20.0,<=1.22.0"]
