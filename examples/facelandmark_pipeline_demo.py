@@ -1,14 +1,16 @@
-from typing import Tuple, List, Dict, Sequence
-import os
-import os.path as osp
-import sys
+from __future__ import annotations
+
 import argparse
 import json
-import pathlib
-import numpy as np
+import os
+import os.path as osp
+from typing import Sequence
+
 import cv2
+import numpy as np
+
 from faceimagekit.pipelines import FaceLandmarkPipeline
-from faceimagekit.utils import draw_face, Timer, resize_image, rersize_points
+from faceimagekit.utils import Timer
 
 
 def parse_args():
@@ -40,9 +42,16 @@ def parse_args():
         "-hd",
         "--accelerator",
         type=str,
-        choices=["cpu", "gpu", "npu", "rk3588", "rk3576", "rk3568"],
+        choices=["cpu", "gpu", "npu", "rk3588", "rk3588s", "rk3576", "rk3568"],
         default="cpu",
         help="hardware type.",
+    )
+    parser.add_argument(
+        "--core_mask",
+        type=str,
+        default="auto",
+        choices=["auto", "0", "1", "2", "0_1", "0_1_2", "all"],
+        help="NPU core mask for multi-core platforms like RK3588/RK3588S (e.g. 'all' for 3 cores 6 TOPS, 'auto', '0').",
     )
     parser.add_argument(
         "-det_engine",
@@ -94,7 +103,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def _face_area(face: Dict[str, np.ndarray]) -> int:
+def _face_area(face: dict[str, np.ndarray]) -> int:
     x1, y1, x2, y2 = face["det_box"].astype(int).tolist()
     return max(0, x2 - x1) * max(0, y2 - y1)
 
@@ -111,8 +120,8 @@ def clip_box(
 
 
 def _face_to_json(
-    face: Dict[str, np.ndarray], image_shape: Sequence[int]
-) -> Dict[str, List[int] | List[List[int]]]:
+    face: dict[str, np.ndarray], image_shape: Sequence[int]
+) -> dict[str, list[int] | list[list[int]]]:
     landmarks = face["landmarks"]
     return {
         "box": list(clip_box(landmarks, image_shape)),
@@ -122,7 +131,7 @@ def _face_to_json(
 
 
 def draw_pipeline_faces(
-    image: np.ndarray, faces: List[Dict[str, np.ndarray]]
+    image: np.ndarray, faces: list[dict[str, np.ndarray]]
 ) -> np.ndarray:
     show_img = image.copy()
     for face in faces:
@@ -154,28 +163,25 @@ def draw_pipeline_faces(
         )
         cv2.putText(
             show_img,
-            "landmarks box",
-            (ld_box[0], min(show_img.shape[0] - 1, ld_box[1] + 24)),
+            "RTMPose",
+            (ld_box[0], max(0, ld_box[1] - 8)),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.7,
             (0, 0, 255),
             2,
             cv2.LINE_AA,
         )
-        landmarks = face["landmarks"].astype(int)
-        for x, y in landmarks:
-            cv2.circle(show_img, (x, y), 1, (0, 0, 255), 2)
-        kps = face["kps"].astype(int)
-        for x, y in kps:
-            cv2.circle(show_img, (x, y), 3, (255, 0, 0), -1)
+        for point in face["landmarks"]:
+            x, y = int(point[0]), int(point[1])
+            cv2.circle(show_img, (x, y), 1, (0, 255, 255), -1)
     return show_img
 
 
-def _json_save_path(save_dir: str, image_path: str, total_files: int) -> str:
+def _json_save_path(save_path: str, img_path: str, total_files: int) -> str:
     if total_files == 1:
-        return osp.join(save_dir, "face_box.json")
-    stem = osp.splitext(osp.basename(image_path))[0]
-    return osp.join(save_dir, f"{stem}_face_box.json")
+        return osp.join(save_path, "face_box.json")
+    stem = osp.splitext(osp.basename(img_path))[0]
+    return osp.join(save_path, f"{stem}_face_box.json")
 
 
 def main():
@@ -189,15 +195,18 @@ def main():
         args.ld_input_shape,
         args.accelerator,
     )
+    prepare_kwargs = {}
+    if args.accelerator.lower() in ("npu", "rk3588", "rk3588s", "rk3576"):
+        prepare_kwargs["core_mask"] = args.core_mask
     try:
-        infer.prepare()
+        infer.prepare(**prepare_kwargs)
     except Exception as e:
-        raise RuntimeError(f"FaceLandmarkPipeline infer error: {str(e)}")
+        raise RuntimeError(f"FaceLandmarkPipeline infer error: {e!s}") from e
 
     for fp in args.file_list:
         img = cv2.imread(str(fp), cv2.IMREAD_COLOR)
         if img is None:
-            raise FileExistsError(f"opencv read {str(fp)} failed")
+            raise FileExistsError(f"opencv read {fp!s} failed")
 
         t_infer = Timer()
         face_list = infer.predict(

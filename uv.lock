@@ -297,7 +297,7 @@ requires-dist = [
     { name = "isort", marker = "extra == 'dev'" },
     { name = "mypy", marker = "extra == 'dev'" },
     { name = "numba" },
-    { name = "numpy", specifier = "<2" },
+    { name = "numpy" },
     { name = "onnxruntime", marker = "extra == 'all'", specifier = ">=1.20.0,<=1.22.0" },
     { name = "onnxruntime", marker = "extra == 'cpu'", specifier = ">=1.20.0,<=1.22.0" },
     { name = "onnxruntime-gpu", marker = "extra == 'cuda'", specifier = ">=1.20.0,<=1.22.0" },

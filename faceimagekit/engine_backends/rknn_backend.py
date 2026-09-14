@@ -15,6 +15,17 @@ def _is_rknn_available() -> bool:
     return module_available("rknn.api") or module_available("rknnlite.api")
 
 
+CORE_MASK_MAP: dict[str, int] = {
+    "auto": 0,
+    "0": 1,
+    "1": 2,
+    "2": 4,
+    "0_1": 3,
+    "0_1_2": 7,
+    "all": 7,
+}
+
+
 class RKNNInfer:
     """RKNN Inference Engine Backend.
 
@@ -46,7 +57,10 @@ class RKNNInfer:
         self.output_order = output_order
         self.out_shapes = None
         self.input_dtype = np.float32
-        self.target_platform = target_platform
+        norm_platform = target_platform.lower().strip()
+        if norm_platform in ("rk3588s", "3588s", "3588"):
+            norm_platform = "rk3588"
+        self.target_platform = norm_platform
         self.verbose = verbose
 
         if not osp.exists(self._weight_file):
@@ -90,9 +104,14 @@ class RKNNInfer:
 
         Args:
             device: 'cpu' / 'simulator' for PC host simulation,
-                    or hardware platform like 'rk3588', 'rk3576', 'rk3568', 'npu'.
+                    or hardware platform like 'rk3588', 'rk3588s', 'rk3576', 'rk3568', 'npu'.
+            **kwargs: Extra runtime parameters like core_mask (e.g. 'all', 'auto', '0', '0_1_2', 7).
         """
-        is_hardware = device.lower() in (
+        dev = device.lower().strip()
+        if dev in ("rk3588s", "3588s", "3588"):
+            dev = "rk3588"
+
+        is_hardware = dev in (
             "gpu",
             "npu",
             "rk3588",
@@ -101,16 +120,24 @@ class RKNNInfer:
             "rk3566",
             "rk3562",
             "rv1106",
+            "rv1103",
+            "rv1126b",
         )
         target = (
-            device.lower()
-            if is_hardware and device.lower() not in ("gpu", "npu")
-            else (self.target_platform if device.lower() == "npu" else None)
+            dev
+            if is_hardware and dev not in ("gpu", "npu")
+            else (self.target_platform if dev == "npu" else None)
         )
+
+        runtime_kwargs = kwargs.copy()
+        if "core_mask" in runtime_kwargs and isinstance(runtime_kwargs["core_mask"], str):
+            mask_key = runtime_kwargs["core_mask"].lower().replace("core", "").strip()
+            if mask_key in CORE_MASK_MAP:
+                runtime_kwargs["core_mask"] = CORE_MASK_MAP[mask_key]
 
         # 1. Edge Board Mode (rknn-toolkit-lite2)
         if module_available("rknnlite.api"):
-            logger.info("Using RKNNLite on-device runtime...")
+            logger.info("Using RKNNLite on-device runtime (core_mask=%s)...", runtime_kwargs.get("core_mask", "auto"))
             from rknnlite.api import RKNNLite
 
             self._model = RKNNLite(verbose=self.verbose)
@@ -119,7 +146,7 @@ class RKNNInfer:
                 raise RKNNRunException(
                     f"RKNNLite load_rknn failed on {self._weight_file} (ret={ret})"
                 )
-            ret = self._model.init_runtime(**kwargs)
+            ret = self._model.init_runtime(**runtime_kwargs)
             if ret != 0:
                 raise RKNNRunException(f"RKNNLite init_runtime failed (ret={ret})")
 
@@ -128,6 +155,11 @@ class RKNNInfer:
             from rknn.api import RKNN
 
             self._model = RKNN(verbose=self.verbose)
+
+            host_kwargs = runtime_kwargs.copy()
+            # In PC simulator mode (target is None), core_mask is ignored
+            if target is None and "core_mask" in host_kwargs:
+                host_kwargs.pop("core_mask")
 
             if self._weight_file.endswith(".rknn"):
                 if target is None:
@@ -146,7 +178,7 @@ class RKNNInfer:
                     raise RKNNRunException(
                         f"RKNN load_rknn failed on {self._weight_file} (ret={ret})"
                     )
-                ret = self._model.init_runtime(target=target, **kwargs)
+                ret = self._model.init_runtime(target=target, **host_kwargs)
                 if ret != 0:
                     raise RKNNRunException(
                         f"RKNN init_runtime with target={target} failed (ret={ret})"
@@ -158,7 +190,7 @@ class RKNNInfer:
                     target,
                 )
                 self._build_rknn_from_onnx(self._weight_file)
-                ret = self._model.init_runtime(target=target, **kwargs)
+                ret = self._model.init_runtime(target=target, **host_kwargs)
                 if ret != 0:
                     raise RKNNRunException(f"RKNN init_runtime failed (ret={ret})")
             else:

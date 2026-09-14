@@ -64,6 +64,7 @@ def parse_args():
         default="rk3588",
         choices=[
             "rk3588",
+            "rk3588s",
             "rk3576",
             "rk3568",
             "rk3566",
@@ -78,14 +79,25 @@ def parse_args():
         "--dtype",
         type=str,
         default="fp16",
-        choices=["fp16", "i8"],
-        help="Quantization dtype: fp16 (unquantized) or i8 (int8 quantized)",
+        choices=["fp16", "i8", "hybrid"],
+        help="Quantization dtype: fp16 (unquantized), i8 (int8 quantized), or hybrid (int8 + fp16/int16 mixed)",
+    )
+    parser.add_argument(
+        "--auto_hybrid",
+        action="store_true",
+        help="Enable RKNN automatic hybrid quantization (auto rollback sensitive layers to FP16/INT16)",
+    )
+    parser.add_argument(
+        "--auto_hybrid_cos_thresh",
+        type=float,
+        default=0.98,
+        help="Cosine similarity threshold for auto hybrid quantization (default: 0.98)",
     )
     parser.add_argument(
         "--dataset",
         type=str,
         default=None,
-        help="Path to dataset.txt file for INT8 quantization calibration",
+        help="Path to dataset.txt file for INT8 / hybrid quantization calibration",
     )
     parser.add_argument(
         "--output_dir",
@@ -103,15 +115,23 @@ def convert_single_model(
     dtype: str,
     dataset: str,
     output_dir: str,
+    auto_hybrid: bool = False,
+    auto_hybrid_cos_thresh: float = 0.98,
 ):
+    # Normalize platform (e.g. rk3588s -> rk3588)
+    if target_platform.lower() in ("rk3588s", "3588s"):
+        target_platform = "rk3588"
+
     onnx_path = cfg["onnx_path"]
     if not osp.exists(onnx_path):
         print(f"[Error] ONNX model not found: {onnx_path}")
         return False
 
+    is_hybrid = auto_hybrid or dtype == "hybrid"
     print("\n" + "=" * 60)
+    mode_str = "HYBRID (INT8+FP16/INT16)" if is_hybrid else dtype.upper()
     print(
-        f"Converting [{model_key}] -> RKNN ({dtype.upper()}, Platform={target_platform})"
+        f"Converting [{model_key}] -> RKNN ({mode_str}, Platform={target_platform})"
     )
     print(f"ONNX Path: {onnx_path}")
     print("=" * 60)
@@ -120,11 +140,14 @@ def convert_single_model(
 
     # 1. Config
     print("--> 1. Configuring model...")
-    rknn.config(
-        mean_values=cfg["mean_values"],
-        std_values=cfg["std_values"],
-        target_platform=target_platform,
-    )
+    config_kwargs = {
+        "mean_values": cfg["mean_values"],
+        "std_values": cfg["std_values"],
+        "target_platform": target_platform,
+    }
+    if is_hybrid:
+        config_kwargs["auto_hybrid_cos_thresh"] = auto_hybrid_cos_thresh
+    rknn.config(**config_kwargs)
 
     # 2. Load ONNX
     print("--> 2. Loading ONNX model...")
@@ -140,15 +163,22 @@ def convert_single_model(
         return False
 
     # 3. Build model
-    do_quantization = dtype == "i8"
-    print(f"--> 3. Building RKNN model (do_quantization={do_quantization})...")
+    do_quantization = dtype in ("i8", "hybrid") or is_hybrid
     if do_quantization and not dataset:
         print(
-            "[Warning] INT8 quantization requested but --dataset is not provided! Using unquantized FP16 build."
+            "[Warning] Quantization requested but --dataset is not provided! Using unquantized FP16 build."
         )
         do_quantization = False
+        is_hybrid = False
 
-    ret = rknn.build(do_quantization=do_quantization, dataset=dataset)
+    print(
+        f"--> 3. Building RKNN model (do_quantization={do_quantization}, auto_hybrid={is_hybrid})..."
+    )
+    build_kwargs = {"do_quantization": do_quantization, "dataset": dataset}
+    if is_hybrid:
+        build_kwargs["auto_hybrid"] = True
+
+    ret = rknn.build(**build_kwargs)
     if ret != 0:
         print(f"[Error] Build RKNN failed for {model_key}!")
         rknn.release()
@@ -156,7 +186,8 @@ def convert_single_model(
 
     # 4. Export RKNN
     os.makedirs(output_dir, exist_ok=True)
-    suffix = f"_{target_platform}_{dtype}.rknn"
+    export_dtype = "hybrid" if is_hybrid else dtype
+    suffix = f"_{target_platform}_{export_dtype}.rknn"
     export_filename = cfg["output_name"] + suffix
     export_path = osp.join(output_dir, export_filename)
 
@@ -186,6 +217,8 @@ def main():
             dtype=args.dtype,
             dataset=args.dataset,
             output_dir=args.output_dir,
+            auto_hybrid=args.auto_hybrid,
+            auto_hybrid_cos_thresh=args.auto_hybrid_cos_thresh,
         )
         if ok:
             success_count += 1

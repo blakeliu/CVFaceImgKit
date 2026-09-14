@@ -94,12 +94,14 @@ python examples/facelandmark_pipeline_demo.py \
     -ld_engine RKNNInfer
 
 # 4. 使用 RKNN 后端 (板端 NPU 或 ADB 连板：手动指定 .rknn 实体模型与硬件平台)
+# 支持 RK3588 / RK3588S（3核 6 TOPS 架构），可通过 --core_mask 指定多核调度模式 (all / auto / 0 / 1 / 2)
 python examples/facelandmark_pipeline_demo.py \
     -det_weight weights/rknn/scrfd_2.5g_gnkps_shape640x640_rk3588_fp16.rknn \
     -ld_weight weights/rknn/rtmface_m_134_256x256_rk3588_fp16.rknn \
     -det_engine RKNNInfer \
     -ld_engine RKNNInfer \
-    -hd rk3588
+    -hd rk3588s \
+    --core_mask all
 ```
 
 运行结果图像与预测坐标 JSON（`det_box`, `lds`, `box`）将自动保存至 `outputs/` 目录。
@@ -110,20 +112,36 @@ python examples/facelandmark_pipeline_demo.py \
 
 项目在 `examples/rknn/` 提供了全套模型转换与 ONNX vs RKNN 精度对比脚本：
 
-### 1. ONNX 转 RKNN 模型
-一键将 SCRFD 2.5G/10G 与 RTMPose 转换为指定硬件（如 `rk3588`）的 FP16 RKNN 模型：
+### 1. ONNX 转 RKNN 模型 (支持 FP16 / INT8 / 混合运算量化)
+一键将 SCRFD 2.5G/10G 与 RTMPose 转换为指定硬件（如 `rk3588s` / `rk3588`）的 RKNN 模型：
 ```bash
-python examples/rknn/convert_to_rknn.py --target_platform rk3588
+# 模式 A: FP16 高精度模型（无量化损失，NPU 原生 FP16 加速）
+python examples/rknn/convert_to_rknn.py --target_platform rk3588s --dtype fp16
+
+# 模式 B: 混合运算量化 (INT8 卷积主干 + FP16/INT16 敏感层自动回退，兼顾 6 TOPS 极致吞吐与高精度)
+python examples/rknn/convert_to_rknn.py \
+    --target_platform rk3588s \
+    --dtype hybrid \
+    --dataset /path/to/dataset.txt \
+    --auto_hybrid_cos_thresh 0.98
 ```
 输出位于 `weights/rknn/`。
 
 ### 2. ONNX vs RKNN 精度与数值对齐分析
 多维度对比张量余弦相似度、人脸检测 IoU、134 关键点像素误差：
 ```bash
-python examples/rknn/compare_onnx_rknn.py --target_platform rk3588
+python examples/rknn/compare_onnx_rknn.py --target_platform rk3588s
 ```
 - SCRFD 检测框 IoU 达到 **99.97% ~ 100.00%**。
 - RTMPose 134 关键点坐标中位数误差 (Median Error) 达到 **0.0000 px**。
+
+### 3. RK3588 / RK3588S (6 TOPS) 多核调度与混合精度特性说明
+- **平台二进制兼容**：RK3588S 与 RK3588 拥有完全相同的 RKNPU3 计算核心架构，RKNN 官方模型完全通用兼容。
+- **6 TOPS 3 核调度**：
+  - `core_mask="all"` 或 `7`：启用全部 3 个 NPU 核心，释放完整 6 TOPS 峰值算力。
+  - `core_mask="auto"` 或 `0`：驱动层根据负载自动在空闲核心间动态分发任务。
+  - `core_mask="0" / "1" / "2"`：锁定单核心运行（每核 2 TOPS），支持双模型多流水线并行隔离。
+- **混合运算支持**：支持 INT4/INT8/INT16/FP16，推荐通过 `--auto_hybrid` 自动将关键点/坐标敏感算子提升至 FP16/INT16 计算，其余密集算子保持 INT8 高吞吐。
 
 ---
 

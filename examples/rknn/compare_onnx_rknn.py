@@ -21,10 +21,11 @@ PROJECT_ROOT = osp.abspath(osp.join(osp.dirname(__file__), "../.."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+from rknn.api import RKNN
+
 from faceimagekit.face_detectors import scrfd_model
 from faceimagekit.face_landmarks import rtmpose_model
-from faceimagekit.utils import Timer, resize_image, rersize_points
-from rknn.api import RKNN
+from faceimagekit.utils import Timer, rersize_points, resize_image
 
 
 def compute_iou(box1, box2):
@@ -59,7 +60,7 @@ def compare_scrfd_precision(
 
     res_img, scale_factor, pad = resize_image(img, (640, 640))
     t_onnx = Timer()
-    dets_onnx, kpss_onnx = det_onnx.predict(
+    dets_onnx, _kpss_onnx = det_onnx.predict(
         res_img, score_threshold=0.5, nms_threshold=0.4
     )
     onnx_time = t_onnx.time()
@@ -109,7 +110,7 @@ def compare_scrfd_precision(
         maes.append(mae)
         max_diffs.append(diff)
         print(
-            f" {name:<14} | {str(list(rknn_raw_outs[i].shape)):<14} | {cos:<12.6f} | {mae:<12.4e} | {diff:<12.4e}"
+            f" {name:<14} | {list(rknn_raw_outs[i].shape)!s:<14} | {cos:<12.6f} | {mae:<12.4e} | {diff:<12.4e}"
         )
 
     print(
@@ -121,7 +122,7 @@ def compare_scrfd_precision(
     bboxes_rknn, kpss_rknn, scores_rknn = det_onnx._postprocess(
         rknn_raw_outs, 640, 640, threshold=0.5
     )
-    det_boxes_rknn, det_kps_rknn = scrfd_filter(
+    det_boxes_rknn, _det_kps_rknn = scrfd_filter(
         bboxes_rknn[0], kpss_rknn[0], scores_rknn[0], nms_threshold=0.4
     )
 
@@ -175,7 +176,7 @@ def compare_rtmpose_precision(
     ld_model = rtmpose_model(onnx_path, backend="ONNXInfer", input_shape=[3, 256, 256])
     ld_model.prepare(device="cpu")
     t_onnx = Timer()
-    onnx_kpts, onnx_scores = ld_model.predict(img, [face_box])
+    onnx_kpts, _onnx_scores = ld_model.predict(img, [face_box])
     onnx_time = t_onnx.time()
     onnx_pts = onnx_kpts[0][0]  # (134, 2)
 
@@ -207,7 +208,7 @@ def compare_rtmpose_precision(
     )
     rknn_time = t_rknn.time()
 
-    rknn_kpts, rknn_score = ld_model.postprocess(rknn_outs, center, scale)
+    rknn_kpts, _rknn_score = ld_model.postprocess(rknn_outs, center, scale)
     rknn_pts = rknn_kpts[0]  # (134, 2)
 
     # --- C. Raw Heatmap Output Comparison ---
@@ -215,7 +216,7 @@ def compare_rtmpose_precision(
     out_names = [o.name for o in sess.get_outputs()]
     onnx_outs = sess.run(out_names, {sess.get_inputs()[0].name: crop_nchw})
 
-    print(f"\n[Raw Tensor Numerical Comparison] (simcc_x, simcc_y 1D heatmaps):")
+    print("\n[Raw Tensor Numerical Comparison] (simcc_x, simcc_y 1D heatmaps):")
     print(
         f" {'Output Head':<14} | {'Shape':<14} | {'Cosine Sim':<12} | {'MAE':<12} | {'Max Diff':<12}"
     )
@@ -227,7 +228,7 @@ def compare_rtmpose_precision(
         mae = np.mean(np.abs(o_v - r_v))
         diff = np.max(np.abs(o_v - r_v))
         print(
-            f" {name:<14} | {str(list(rknn_outs[i].shape)):<14} | {cos:<12.6f} | {mae:<12.4e} | {diff:<12.4e}"
+            f" {name:<14} | {list(rknn_outs[i].shape)!s:<14} | {cos:<12.6f} | {mae:<12.4e} | {diff:<12.4e}"
         )
 
     # --- D. Landmark Coordinate Metric Comparison ---
@@ -262,7 +263,7 @@ def main():
         "--target_platform",
         type=str,
         default="rk3588",
-        choices=["rk3588", "rk3576", "rk3568", "rk3566", "rk3562", "rv1106"],
+        choices=["rk3588", "rk3588s", "rk3576", "rk3568", "rk3566", "rk3562", "rv1106"],
         help="Target platform for RKNN compiler",
     )
     parser.add_argument(
@@ -278,12 +279,14 @@ def main():
     )
     args = parser.parse_args()
 
+    platform = "rk3588" if args.target_platform.lower() in ("rk3588s", "3588s") else args.target_platform
+
     # 1. Compare SCRFD 2.5G
     scrfd_2_5g = "/home/tf/PycharmProjects/face/weights/scrfd/onnx/scrfd_2.5g_gnkps_shape640x640.onnx"
     compare_scrfd_precision(
         onnx_path=scrfd_2_5g,
         test_img_path=args.test_image,
-        target_platform=args.target_platform,
+        target_platform=platform,
         run_layer_analysis=args.layer_analysis,
     )
 
@@ -292,7 +295,7 @@ def main():
     compare_scrfd_precision(
         onnx_path=scrfd_10g,
         test_img_path=args.test_image,
-        target_platform=args.target_platform,
+        target_platform=platform,
         run_layer_analysis=False,
     )
 
@@ -303,7 +306,7 @@ def main():
     compare_rtmpose_precision(
         onnx_path=rtmpose_onnx,
         test_img_path=args.test_image,
-        target_platform=args.target_platform,
+        target_platform=platform,
         run_layer_analysis=args.layer_analysis,
     )
 

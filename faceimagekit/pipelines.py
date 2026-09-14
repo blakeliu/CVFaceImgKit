@@ -22,7 +22,7 @@ class _BasePipeline(ABC):
 
 
 EngineType = Literal["ONNXInfer", "OpencvInfer", "RKNNInfer"]
-DeviceType = Literal["cpu", "gpu", "npu", "rk3588", "rk3576", "rk3568"]
+DeviceType = Literal["cpu", "gpu", "npu", "rk3588", "rk3588s", "rk3576", "rk3568"]
 
 
 def clip_box(landmarks: np.ndarray, image_shape: tuple[int, int]) -> np.ndarray:
@@ -66,9 +66,9 @@ class FaceLandmarkPipeline(_BasePipeline):
         )
         self.device = device
 
-    def prepare(self):
-        self._det_infer.prepare(device=self.device)
-        self._ld_infer.prepare(device=self.device)
+    def prepare(self, **kwargs):
+        self._det_infer.prepare(device=self.device, **kwargs)
+        self._ld_infer.prepare(device=self.device, **kwargs)
 
     def lds_infer(self, img, boxes: list | None = None):
         keypoints, _scores = self._ld_infer.predict(img, boxes)
