@@ -1,5 +1,4 @@
-from typing import Optional, Union, List, Tuple
-from abc import abstractclassmethod, ABCMeta, abstractmethod
+from abc import ABCMeta
 
 import numpy as np
 
@@ -50,4 +49,4 @@ class Segmenter(metaclass=ABCMeta):
         raise NotImplementedError
 
     def classes(self):
-        raise NotImplementedError(f"must implement classes property!")
+        raise NotImplementedError("must implement classes property!")

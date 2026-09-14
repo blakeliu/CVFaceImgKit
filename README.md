@@ -1,6 +1,6 @@
 # FaceImageKit
 
-Python实现的人脸图像相关算法Pipeline
+Python实现的高性能人脸图像相关算法Pipeline（人脸检测、134人脸关键点、人脸分割等）。
 
 # License
 
@@ -11,38 +11,125 @@ Python实现的人脸图像相关算法Pipeline
 
 商业授权请联系：blake120386@163.com
 
+---
+
 # Install
-## python
-example:
+
+## python 环境配置
+推荐使用 [uv](https://github.com/astral-sh/uv) 管理虚拟环境：
 ```bash
 uv venv --python 3.12
-```
-## deploy
-### cpu
-```shell
-uv pip install -e .[cpu]
-```
-### cuda
-```shell
-uv pip install -e .[cuda]
+source .venv/bin/activate
 ```
 
-## develop
-### cpu
+## 部署依赖 (Deploy)
+根据推理目标后端选择安装对应依赖：
+
+### CPU (ONNXRuntime)
 ```shell
+uv pip install -e .[cpu]
+# 或 pip install -e .[cpu]
+```
+
+### CUDA / GPU (ONNXRuntime-GPU)
+```shell
+uv pip install -e .[cuda]
+# 或 pip install -e .[cuda]
+```
+
+### RKNN (瑞芯微 Rockchip NPU)
+适用于 x86_64 PC 端模拟器编译/调试，或 RK3588/RK3576/RK3568 等边缘端 NPU 部署：
+```shell
+uv pip install -e .[rknn]
+# 或 pip install -e .[rknn]
+```
+> 注：PC 端推理依赖 `rknn-toolkit2`；边缘板端（如 Linux aarch64）部署可安装对应板端 `rknn-toolkit-lite2`。
+
+---
+
+## 开发依赖 (Develop)
+```shell
+# CPU 开发环境
 uv sync --extra cpu
-```
-### gpu/cuda
-```shell
+
+# GPU / CUDA 开发环境
 uv sync --extra cuda
-```
-### dev
-```shell
+
+# RKNN 开发环境
+uv sync --extra rknn
+
+# 完整测试与代码格式化工具
 uv sync --extra dev --extra cpu
 ```
 
+---
+
+# Quick Start
+
+## 人脸检测与 134 关键点 Pipeline
+
+检测流水线 `FaceLandmarkPipeline`（人脸检测 SCRFD -> 134 关键点 RTMPose）：
+
+```bash
+# 1. 使用 OpenCV DNN 后端
+python examples/facelandmark_pipeline_demo.py \
+    -det_weight /home/tf/PycharmProjects/face/weights/scrfd/onnx/scrfd_2.5g_gnkps_shape640x640.onnx \
+    -ld_weight /home/tf/PycharmProjects/face/weights/rtmface-m/mmdeploy/end2end.onnx \
+    -det_engine OpencvInfer \
+    -ld_engine OpencvInfer
+
+# 2. 使用 ONNXRuntime 后端 (CPU/GPU)
+python examples/facelandmark_pipeline_demo.py \
+    -det_weight /home/tf/PycharmProjects/face/weights/scrfd/onnx/scrfd_2.5g_gnkps_shape640x640.onnx \
+    -ld_weight /home/tf/PycharmProjects/face/weights/rtmface-m/mmdeploy/end2end.onnx \
+    -det_engine ONNXInfer \
+    -ld_engine ONNXInfer \
+    -hd cpu
+
+# 3. 使用 RKNN 后端 (PC 模拟器模式：手动指定 .onnx 模型进行模拟运行)
+python examples/facelandmark_pipeline_demo.py \
+    -det_weight /home/tf/PycharmProjects/face/weights/scrfd/onnx/scrfd_2.5g_gnkps_shape640x640.onnx \
+    -ld_weight /home/tf/PycharmProjects/face/weights/rtmface-m/mmdeploy/end2end.onnx \
+    -det_engine RKNNInfer \
+    -ld_engine RKNNInfer
+
+# 4. 使用 RKNN 后端 (板端 NPU 或 ADB 连板：手动指定 .rknn 实体模型与硬件平台)
+python examples/facelandmark_pipeline_demo.py \
+    -det_weight weights/rknn/scrfd_2.5g_gnkps_shape640x640_rk3588_fp16.rknn \
+    -ld_weight weights/rknn/rtmface_m_134_256x256_rk3588_fp16.rknn \
+    -det_engine RKNNInfer \
+    -ld_engine RKNNInfer \
+    -hd rk3588
+```
+
+运行结果图像与预测坐标 JSON（`det_box`, `lds`, `box`）将自动保存至 `outputs/` 目录。
+
+---
+
+## RKNN 模型转换与精度验证工具
+
+项目在 `examples/rknn/` 提供了全套模型转换与 ONNX vs RKNN 精度对比脚本：
+
+### 1. ONNX 转 RKNN 模型
+一键将 SCRFD 2.5G/10G 与 RTMPose 转换为指定硬件（如 `rk3588`）的 FP16 RKNN 模型：
+```bash
+python examples/rknn/convert_to_rknn.py --target_platform rk3588
+```
+输出位于 `weights/rknn/`。
+
+### 2. ONNX vs RKNN 精度与数值对齐分析
+多维度对比张量余弦相似度、人脸检测 IoU、134 关键点像素误差：
+```bash
+python examples/rknn/compare_onnx_rknn.py --target_platform rk3588
+```
+- SCRFD 检测框 IoU 达到 **99.97% ~ 100.00%**。
+- RTMPose 134 关键点坐标中位数误差 (Median Error) 达到 **0.0000 px**。
+
+---
+
 # Models
-## Face Dtection
+
+## Face Detection
 ### scrfd
 Models accuracy on WiderFace benchmark:
 | Model            | Easy  | Medium | Hard  |
@@ -51,20 +138,21 @@ Models accuracy on WiderFace benchmark:
 | scrfd_2.5g_gnkps | 93.57 | 91.70  | 76.08 |
 | scrfd_500m_gnkps | 88.70 | 86.11  | 63.57 |
 
-来源https://github.com/SthPhoenix/InsightFace-REST/    
+来源：https://github.com/SthPhoenix/InsightFace-REST/
 
-**runtime**
-+ [x] onnxruntime(cpu, cuda)
-+ [x] opencv
-+ [ ] TensorRT
+**支持的推理运行时 (Runtime)**:
+- [x] onnxruntime (cpu, cuda)
+- [x] opencv (cpu, cuda)
+- [x] RKNN (`RKNNInfer`: 支持 PC 模拟器及 rk3588, rk3576, rk3568, rk3566 等 NPU 硬件)
+- [ ] TensorRT
 
 
 ## Face Landmark
-datasets: Lapa134(Lapa106 + 28)
+数据集: Lapa134 (Lapa106 + 28)
 ### rtmface
 模型输出大小: $134\times 2$
 
-关键点说明图:
+关键点定义说明：
 
 ![rtmface 134 landmarks](asserts/rtmface_134.png)
 
@@ -72,9 +160,13 @@ datasets: Lapa134(Lapa106 + 28)
 | :-------------------- | :----: |
 | rtmpose-m-ort-lapa134 | 0.0288 |
 | rtmpose-s-ort-lapa134 | 0.0258 |
-+ [x] onnxruntime(cpu, cuda)
-+ [x] opencv
-+ [ ] TensorRT
+
+**支持的推理运行时 (Runtime)**:
+- [x] onnxruntime (cpu, cuda)
+- [x] opencv (cpu, cuda)
+- [x] RKNN (`RKNNInfer`: 支持 PC 模拟器及 rk3588, rk3576, rk3568, rk3566 等 NPU 硬件)
+- [ ] TensorRT
+
 
 ## Face Segmentation
 ### ppliteseg
@@ -121,8 +213,8 @@ datasets: Lapa134(Lapa106 + 28)
 | :------------------- | :-----: | :------: |
 | face_seg_ppliteseg_t |  0.727  |  0.834   |
 
-+ [x] onnxruntime(cpu)
-+ [ ] TensorRT
+- [x] onnxruntime (cpu)
+- [ ] TensorRT
 
 - label map 类别数量12
 
@@ -145,5 +237,5 @@ datasets: Lapa134(Lapa106 + 28)
 | :-------------------- | :-----: | :------: |
 | face12_seg_pplitesegb |  0.774  |  0.869   |
 
-+ [x] onnxruntime(cpu)
-+ [ ] TensorRT
+- [x] onnxruntime (cpu)
+- [ ] TensorRT

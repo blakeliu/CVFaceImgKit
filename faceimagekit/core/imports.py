@@ -1,11 +1,6 @@
-import functools
 import importlib
-import operator
-import types
-from importlib.util import find_spec
-from typing import List, Union
-
 from importlib.metadata import PackageNotFoundError
+from importlib.util import find_spec
 
 try:
     from packaging.version import Version

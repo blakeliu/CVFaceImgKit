@@ -1,12 +1,14 @@
-from typing import Dict, List, Union, Tuple
+from __future__ import annotations
+
 import time
-import numpy as np
+
 import cv2
+import numpy as np
 
 
 def draw_face(
     image: np.ndarray,
-    faces: List[Dict[str, np.ndarray]],
+    faces: list[dict[str, np.ndarray]],
     draw_bbox: bool = True,
     draw_socre: bool = False,
     draw_kps: bool = False,
@@ -19,7 +21,7 @@ def draw_face(
             pt1 = tuple(box[0:2])
             pt2 = tuple(box[2:4])
             x, y = pt1
-            r, b = pt2
+            r, _ = pt2
             w = r - x
             color = (0, 255, 0)
             cv2.rectangle(image, pt1, pt2, color, 1)
@@ -53,7 +55,7 @@ def draw_face(
     return image
 
 
-def rersize_points(dets, scale: float, pad: Tuple[int, int] = (0, 0)):
+def rersize_points(dets, scale: float, pad: tuple[int, int] = (0, 0)):
     if pad != (0, 0):
         dets = dets.copy()
         dets[..., 0::2] -= pad[0]
@@ -63,9 +65,7 @@ def rersize_points(dets, scale: float, pad: Tuple[int, int] = (0, 0)):
     return dets
 
 
-def resize_image(
-    image, new_shape: List[int], value: Tuple[int, int, int] = (0, 0, 0)
-):
+def resize_image(image, new_shape: list[int], value: tuple[int, int, int] = (0, 0, 0)):
     """letter_box style resize
 
     Args:
@@ -81,17 +81,17 @@ def resize_image(
     h, w = image.shape[:2]
 
     scale_factor = min(target_w / w, target_h / h)
-    new_unpad = int(round(w * scale_factor)), int(round(h * scale_factor))
+    new_unpad = round(w * scale_factor), round(h * scale_factor)
     dw = (target_w - new_unpad[0]) / 2
     dh = (target_h - new_unpad[1]) / 2
 
     if (w, h) != new_unpad:
         image = cv2.resize(image, new_unpad, interpolation=cv2.INTER_LINEAR)
 
-    top = int(round(dh - 0.1))
-    bottom = int(round(dh + 0.1))
-    left = int(round(dw - 0.1))
-    right = int(round(dw + 0.1))
+    top = round(dh - 0.1)
+    bottom = round(dh + 0.1)
+    left = round(dw - 0.1)
+    right = round(dw + 0.1)
     transformed_image = cv2.copyMakeBorder(
         image,
         top,
@@ -105,7 +105,7 @@ def resize_image(
     return transformed_image, scale_factor, (left, top)
 
 
-class Timer(object):
+class Timer:
     def __init__(self):
         self.start_time = time.time()
 
@@ -131,7 +131,7 @@ def _scale_size(size, scale):
 
 def rescale_image(
     image,
-    scale: Union[List, Union[float, int]],
+    scale: list | float,
     return_scale=False,
     interpolation=cv2.INTER_LINEAR,
 ):

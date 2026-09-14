@@ -1,8 +1,9 @@
-import os.path as osp
-import sys
 import logging
+import os.path as osp
+
 import numpy as np
-from faceimagekit.core import Registry, regsiter_fn, module_available
+
+from faceimagekit.core import Registry, module_available
 from faceimagekit.core.exception import ONNXRunException
 
 if not module_available("onnxruntime"):
@@ -78,7 +79,7 @@ class ONNXInfer:
         try:
             net_out = self._model.run(self.output_order, {self.input.name: input})
         except Exception as e:
-            raise ONNXRunException(f"onnx run error: {str(e)}")
+            raise ONNXRunException(f"onnx run error: {e!s}")
         return net_out
 
 

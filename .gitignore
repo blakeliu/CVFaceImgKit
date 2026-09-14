@@ -140,3 +140,7 @@ cython_debug/
 tmp-out/
 
 .vscode/
+
+third_doc
+
+outputs

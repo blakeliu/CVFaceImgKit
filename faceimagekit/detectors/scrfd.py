@@ -1,10 +1,13 @@
 import logging
+
 import numpy as np
-from faceimagekit.core import Registry, regsiter_fn, module_available
+
+from faceimagekit.core import Registry, module_available
 
 if not module_available("numba"):
     raise ModuleNotFoundError("numba package not found! please 'pip install numba'")
 from numba import njit
+
 from .base import Detector
 
 logging.getLogger("numba").setLevel(logging.WARNING)
@@ -116,7 +119,7 @@ def generate_proposals(
 
     total = offset
 
-    for ix in range(0, anchors.shape[0]):
+    for ix in range(anchors.shape[0]):
         if score_blob[ix, 0] > threshold:
             score_out[total] = score_blob[ix]
             bbox_out[total] = single_distance2bbox(anchors[ix], bbox_blob[ix], stride)

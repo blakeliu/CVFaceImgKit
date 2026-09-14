@@ -1,10 +1,9 @@
-import os
-import sys
-import logging
 from typing import List, Tuple
-import numpy as np
+
 import cv2
-from faceimagekit.core import Registry, regsiter_fn, module_available
+import numpy as np
+
+from faceimagekit.core import Registry, module_available
 
 if not module_available("numba"):
     raise ModuleNotFoundError("numba package not found! please 'pip install numba'")

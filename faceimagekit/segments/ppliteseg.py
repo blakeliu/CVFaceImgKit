@@ -1,8 +1,10 @@
-import numpy as np
-from faceimagekit.core import Registry, module_available
 import cv2
+import numpy as np
 from scipy.special import softmax
+
+from faceimagekit.core import Registry
 from faceimagekit.utils import rescale_image
+
 from .base import Segmenter
 
 
@@ -27,38 +29,40 @@ def normalize_on_np(input: np.ndarray):
 
 class PPLiteSeg(Segmenter):
     # rgb
-    color_map = [[0, 0, 0],
-                 [255, 255, 255],
-                 [81, 243, 218],
-                 [252, 119, 61],
-                 [192, 237, 215],
-                 [83, 201, 95],
-                 [96, 126, 4],
-                 [144, 3, 190],
-                 [104, 111, 5],
-                 [156, 226, 149],
-                 [247, 232, 203],
-                 [218, 159, 173],
-                 [98, 119, 254],
-                 [69, 210, 136],
-                 [212, 92, 44],
-                 [125, 170, 135],
-                 [120, 88, 54],
-                 [37, 31, 174],
-                 [25, 118, 98],
-                 [77, 10, 58],
-                 [250, 139, 146],
-                 [19, 245, 33],
-                 [66, 47, 72],
-                 [169, 240, 248],
-                 [164, 113, 99],
-                 [24, 100, 221],
-                 [6, 247, 155],
-                 [79, 170, 93],
-                 [243, 186, 164],
-                 [230, 27, 157],
-                 [185, 126, 86],
-                 [167, 235, 42]]
+    color_map = [
+        [0, 0, 0],
+        [255, 255, 255],
+        [81, 243, 218],
+        [252, 119, 61],
+        [192, 237, 215],
+        [83, 201, 95],
+        [96, 126, 4],
+        [144, 3, 190],
+        [104, 111, 5],
+        [156, 226, 149],
+        [247, 232, 203],
+        [218, 159, 173],
+        [98, 119, 254],
+        [69, 210, 136],
+        [212, 92, 44],
+        [125, 170, 135],
+        [120, 88, 54],
+        [37, 31, 174],
+        [25, 118, 98],
+        [77, 10, 58],
+        [250, 139, 146],
+        [19, 245, 33],
+        [66, 47, 72],
+        [169, 240, 248],
+        [164, 113, 99],
+        [24, 100, 221],
+        [6, 247, 155],
+        [79, 170, 93],
+        [243, 186, 164],
+        [230, 27, 157],
+        [185, 126, 86],
+        [167, 235, 42],
+    ]
 
     # label_map = {0: 'background',
     #              1: 'skin',
@@ -135,7 +139,7 @@ class PPLiteSeg(Segmenter):
         """norm img to tensor
 
         Args:
-            img (np.ndarray): bgr uint8 image 
+            img (np.ndarray): bgr uint8 image
         Returns:
             _type_: float32 ndarray
         """
@@ -146,13 +150,12 @@ class PPLiteSeg(Segmenter):
         """resize and norm img to tensor
 
         Args:
-            img (np.ndarray): bgr uint8 image 
+            img (np.ndarray): bgr uint8 image
         Returns:
             _type_: float32 ndarray
         """
         new_shape = self.input_shape[2:]  # hw
-        res_img, scale_factor = rescale_image(
-            img, new_shape[::-1], return_scale=True)
+        res_img, scale_factor = rescale_image(img, new_shape[::-1], return_scale=True)
         shape = res_img.shape[:2]  # hw
 
         r = min(new_shape[1] / shape[1], new_shape[0] / shape[0])
@@ -162,14 +165,14 @@ class PPLiteSeg(Segmenter):
         dw /= 2  # divide padding into 2 sides
         dh /= 2
         if shape[::-1] != new_unpad:  # resize
-            res_img = cv2.resize(res_img, new_unpad,
-                                 interpolation=cv2.INTER_LINEAR)
+            res_img = cv2.resize(res_img, new_unpad, interpolation=cv2.INTER_LINEAR)
 
         top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
         left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
 
-        res_img = cv2.copyMakeBorder(res_img, top, bottom, left, right,
-                                     cv2.BORDER_CONSTANT, value=0)  # add border
+        res_img = cv2.copyMakeBorder(
+            res_img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=0
+        )  # add border
 
         return res_img, scale_factor, (dw, dh)
 
@@ -181,18 +184,16 @@ class PPLiteSeg(Segmenter):
             score_thr (float, optional): score threshold. Defaults to 0.5.
             palette (bool, optional): pixle to color_map. Defaults to False.
         """
-        h, w = img.shape[0: 2]
+        h, w = img.shape[0:2]
         res_img, scale_factor, pad = self._preprocess(img)
-        net_outputs = self._forward(
-            np.expand_dims(self._transform(res_img), 0))
+        net_outputs = self._forward(np.expand_dims(self._transform(res_img), 0))
 
         seg_pred = self._postprocess(net_outputs, (w, h), pad)
 
         if seg_pred.shape[0] == 1:
             seg_pred = seg_pred[0]
         if palette:
-            color_seg = np.zeros(
-                (h, w, 3), dtype=np.uint8)
+            color_seg = np.zeros((h, w, 3), dtype=np.uint8)
             for label, name in self.label_map.items():
                 color_seg[seg_pred == label, :] = self.color_map[label]
             color_seg = color_seg[..., ::-1]  # rgb to bgr
@@ -212,14 +213,17 @@ class PPLiteSeg(Segmenter):
         _, oh, ow = net_output.shape
         top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
         left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
-        pad_img = net_output[:, top: oh-bottom, left: ow-right]
+        pad_img = net_output[:, top : oh - bottom, left : ow - right]
         c, nh, nw = pad_img.shape
         if new_size != (nw, nh):
             # new_size = int((nw+0.5) / float(scale_factor)), int((nh+0.5) / float(scale_factor))
             res_tensors = np.zeros((c, *new_size[::-1]), dtype=np.uint8)
             for i in range(c):
-                res_tensors[i] = cv2.resize(pad_img[i].astype(
-                    np.uint8), new_size, interpolation=cv2.INTER_NEAREST)
+                res_tensors[i] = cv2.resize(
+                    pad_img[i].astype(np.uint8),
+                    new_size,
+                    interpolation=cv2.INTER_NEAREST,
+                )
             return np.ascontiguousarray(res_tensors)
         return pad_img.astype(np.uint8)
 
@@ -237,5 +241,6 @@ class PPLiteSeg(Segmenter):
 
 
 def regsiter_ppliteseg_segment(register: Registry):
-    register(fn=PPLiteSeg, name=PPLiteSeg.__name__,
-             namespace="segment", type="face_segment")
+    register(
+        fn=PPLiteSeg, name=PPLiteSeg.__name__, namespace="segment", type="face_segment"
+    )

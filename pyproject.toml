@@ -1,60 +1,55 @@
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "faceimagekit"
-dynamic = ["version"]
 description = "Python implementation of face detection, face landmark, face segmentation and so on."
 readme = "README.md"
 requires-python = ">=3.8"
-license = { text = "AGPL-3.0-only OR Commercial License" }
 authors = [{ name = "blakeliu", email = "blake120386@163.com" }]
-keywords = ["face detection", "face landmark", "cv", "onnx", "onnxruntime"]
+keywords = ["cv", "face detection", "face landmark", "onnx", "onnxruntime"]
 classifiers = [
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "License :: OSI Approved :: GNU Affero General Public License v3",
-    "Operating System :: OS Independent",
-    "Development Status :: 5 - Production/Stable",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Education",
-    "Intended Audience :: Computer Vision",
-    "Intended Audience :: Science/Research",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Topic :: Scientific/Engineering :: Computer Vision",
-    "Topic :: Face Analysis :: General",
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Computer Vision",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Education",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: GNU Affero General Public License v3",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Face Analysis :: General",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Scientific/Engineering :: Computer Vision",
 ]
-dependencies = ["numpy", "opencv-python", "numba", "scipy"]
-
-[project.optional-dependencies]
-cpu = ["onnxruntime>=1.20.0,<=1.22.0"]
-cuda = ["onnxruntime-gpu>=1.20.0,<=1.22.0"]
-all = ["onnxruntime>=1.20.0,<=1.22.0"]
-dev = ["pytest", "black", "isort", "mypy"]
+dependencies = ["numba", "numpy", "opencv-python", "scipy"]
+dynamic = ["version"]
 
 [project.urls]
 "Source" = "https://github.com/blakeliu/CVFaceImgKit.git"
 "onnxruntime" = "https://github.com/microsoft/onnxruntime"
 
-[tool.setuptools.dynamic]
-version = { attr = "faceimagekit.version.__version__" }
+[project.optional-dependencies]
+all = ["onnxruntime>=1.20.0,<=1.22.0", "rknn-toolkit2>=2.3.0", "onnx<=1.17.0"]
+cpu = ["onnxruntime>=1.20.0,<=1.22.0"]
+cuda = ["onnxruntime-gpu>=1.20.0,<=1.22.0"]
+dev = ["pytest", "black", "isort", "mypy", "ruff"]
+rknn = ["rknn-toolkit2>=2.3.0", "onnx<=1.17.0"]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 include-package-data = true
 
+[tool.setuptools.dynamic]
+version = { attr = "faceimagekit.version.__version__" }
+
 [tool.setuptools.packages.find]
 include = ["faceimagekit*"]
 exclude = ["converters*", "examples*"]
-
-[[tool.uv.index]]
-name = "aliyun-pypi"
-url = "https://mirrors.aliyun.com/pypi/simple"
-default = true
 
 [tool.setuptools.package-data]
 # Include any data files inside the package
@@ -62,3 +57,8 @@ default = true
 
 [tool.uv]
 # Optional: uv specific settings if needed, but standard standards work best.
+
+[[tool.uv.index]]
+name = "aliyun-pypi"
+url = "https://mirrors.aliyun.com/pypi/simple"
+default = true

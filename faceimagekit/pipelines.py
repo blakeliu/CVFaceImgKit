@@ -1,7 +1,12 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Literal
+
 import numpy as np
-from faceimagekit.utils import resize_image, rersize_points
+
+from faceimagekit.utils import rersize_points, resize_image
+
 from .face_detectors import scrfd_model
 from .face_landmarks import rtmpose_model
 
@@ -16,8 +21,8 @@ class _BasePipeline(ABC):
         raise NotImplementedError()
 
 
-EngineType = Union["ONNXInfer", "OpencvInfer"]
-DeviceType = Union["cpu", "gpu"]
+EngineType = Literal["ONNXInfer", "OpencvInfer", "RKNNInfer"]
+DeviceType = Literal["cpu", "gpu", "npu", "rk3588", "rk3576", "rk3568"]
 
 
 def clip_box(landmarks: np.ndarray, image_shape: tuple[int, int]) -> np.ndarray:
@@ -65,8 +70,8 @@ class FaceLandmarkPipeline(_BasePipeline):
         self._det_infer.prepare(device=self.device)
         self._ld_infer.prepare(device=self.device)
 
-    def lds_infer(self, img, boxes: list = None):
-        keypoints, scores = self._ld_infer.predict(img, boxes)
+    def lds_infer(self, img, boxes: list | None = None):
+        keypoints, _scores = self._ld_infer.predict(img, boxes)
         results = []
         for kps in keypoints:
             results.append(

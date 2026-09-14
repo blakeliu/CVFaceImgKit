@@ -1,12 +1,13 @@
-import functools
-import itertools
 import logging
 from typing import Any, Callable, Dict, List, Optional, Union
 
 _REGISTERED_FUNCTION = Dict[str, Any]
 rank_zero_info = logging.info
+
+
 class MisconfigurationException(Exception):
     pass
+
 
 class Registry:
     """This class is used to register function or :class:`functools.partial` class to a registry."""
@@ -23,7 +24,9 @@ class Registry:
         return any(key == e["name"] for e in self.functions)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(name={self.name}, functions={self.functions})"
+        return (
+            f"{self.__class__.__name__}(name={self.name}, functions={self.functions})"
+        )
 
     def get(
         self,
@@ -31,7 +34,9 @@ class Registry:
         with_metadata: bool = False,
         strict: bool = True,
         **metadata,
-    ) -> Union[Callable, _REGISTERED_FUNCTION, List[_REGISTERED_FUNCTION], List[Callable]]:
+    ) -> Union[
+        Callable, _REGISTERED_FUNCTION, List[_REGISTERED_FUNCTION], List[Callable]
+    ]:
         """This function is used to gather matches from the registry:
 
         Args:
@@ -42,12 +47,16 @@ class Registry:
         """
         matches = [e for e in self.functions if key == e["name"]]
         if not matches:
-            raise KeyError(f"Key: {key} is not in {type(self).__name__}. Available keys: {self.available_keys()}")
+            raise KeyError(
+                f"Key: {key} is not in {type(self).__name__}. Available keys: {self.available_keys()}"
+            )
 
         if metadata:
             matches = [m for m in matches if metadata.items() <= m["metadata"].items()]
             if not matches:
-                raise KeyError("Found no matches that fit your metadata criteria. Try removing some metadata")
+                raise KeyError(
+                    "Found no matches that fit your metadata criteria. Try removing some metadata"
+                )
 
         matches = [e if with_metadata else e["fn"] for e in matches]
         return matches[0] if strict else matches
@@ -63,7 +72,9 @@ class Registry:
         metadata: Optional[Dict[str, Any]] = None,
     ):
         if not callable(fn):
-            raise MisconfigurationException(f"You can only register a callable, found: {fn}")
+            raise MisconfigurationException(
+                f"You can only register a callable, found: {fn}"
+            )
 
         if name is None:
             if hasattr(fn, "func"):
@@ -72,8 +83,9 @@ class Registry:
                 name = fn.__name__
 
         if self._verbose:
-            rank_zero_info(f"Registering: {fn.__name__} function with name: {name} and metadata: {metadata}")
-            
+            rank_zero_info(
+                f"Registering: {fn.__name__} function with name: {name} and metadata: {metadata}"
+            )
 
         item = {"fn": fn, "name": name, "metadata": metadata or {}}
 
@@ -105,7 +117,9 @@ class Registry:
         Functions can be filtered using metadata using the ``get`` function.
         """
         if fn is not None:
-            self._register_function(fn=fn, name=name, override=override, metadata=metadata)
+            self._register_function(
+                fn=fn, name=name, override=override, metadata=metadata
+            )
             return fn
 
         # raise the error ahead of time
@@ -113,7 +127,9 @@ class Registry:
             raise TypeError(f"`name` must be a str, found {name}")
 
         def _register(cls):
-            self._register_function(fn=cls, name=name, override=override, metadata=metadata)
+            self._register_function(
+                fn=cls, name=name, override=override, metadata=metadata
+            )
             return cls
 
         return _register

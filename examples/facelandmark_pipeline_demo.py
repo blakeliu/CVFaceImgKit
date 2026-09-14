@@ -14,17 +14,33 @@ from faceimagekit.utils import draw_face, Timer, resize_image, rersize_points
 def parse_args():
     parser = argparse.ArgumentParser(description="Test FaceLandmarkPipeline")
     # Basic
+    _default_weight_dir = "/home/tf/PycharmProjects/face/weights"
+    _default_det = osp.join(
+        _default_weight_dir, "scrfd/onnx/scrfd_2.5g_gnkps_shape640x640.onnx"
+    )
+    _default_ld = osp.join(_default_weight_dir, "rtmface-m/mmdeploy/end2end.onnx")
+    _default_img = osp.join(osp.dirname(__file__), "..", "pics", "10216.jpg")
+    _default_out = osp.join(osp.dirname(__file__), "..", "outputs")
+
     parser.add_argument(
-        "-det_weight", "--det_weight_path", type=str, help="det weight file."
+        "-det_weight",
+        "--det_weight_path",
+        type=str,
+        default=_default_det,
+        help="det weight file.",
     )
     parser.add_argument(
-        "-ld_weight", "--ld_weight_path", type=str, help="landmark weight file."
+        "-ld_weight",
+        "--ld_weight_path",
+        type=str,
+        default=_default_ld,
+        help="landmark weight file.",
     )
     parser.add_argument(
         "-hd",
         "--accelerator",
         type=str,
-        choices=["cpu", "gpu"],
+        choices=["cpu", "gpu", "npu", "rk3588", "rk3576", "rk3568"],
         default="cpu",
         help="hardware type.",
     )
@@ -32,7 +48,7 @@ def parse_args():
         "-det_engine",
         "--det_engine_type",
         type=str,
-        choices=["ONNXInfer", "OpencvInfer"],
+        choices=["ONNXInfer", "OpencvInfer", "RKNNInfer"],
         default="OpencvInfer",
         help="detection engine type.",
     )
@@ -40,7 +56,7 @@ def parse_args():
         "-ld_engine",
         "--ld_engine_type",
         type=str,
-        choices=["ONNXInfer", "OpencvInfer"],
+        choices=["ONNXInfer", "OpencvInfer", "RKNNInfer"],
         default="OpencvInfer",
         help="landmark engine type.",
     )
@@ -61,9 +77,19 @@ def parse_args():
     parser.add_argument("--threshold", type=float, default=0.5, help="score threshold")
     parser.add_argument("--nms", type=float, default=0.4, help="nms threshold")
     parser.add_argument(
-        "-files", "--file_list", type=str, nargs="+", default=[], help="file path list"
+        "-files",
+        "--file_list",
+        type=str,
+        nargs="+",
+        default=[_default_img] if osp.exists(_default_img) else [],
+        help="file path list",
     )
-    parser.add_argument("--save_path", type=str, help="path to save generation result")
+    parser.add_argument(
+        "--save_path",
+        type=str,
+        default=_default_out,
+        help="path to save generation result",
+    )
     parser.add_argument("--imshow", action="store_true", help="show image with opencv")
     return parser.parse_args()
 

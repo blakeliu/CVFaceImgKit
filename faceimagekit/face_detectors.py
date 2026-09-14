@@ -1,9 +1,10 @@
-from typing import AnyStr, Optional, Union, Callable
+from __future__ import annotations
+
 import os.path as osp
 from pathlib import Path
+
 from .detectors import DETECTORS
 from .engine_backends import ENGINE_BACKENDS
-
 
 scrfd_outputs = {
     "gnkps": {
@@ -51,13 +52,13 @@ def get_scrfd_outputs(model_name: str):
         return scrfd_outputs["default"], shape
 
 
-def scrfd_model(model_path: Union[str, Path], backend: str = "ONNXInfer", **kwargs):
-    if backend in ("ONNXInfer", "OpencvInfer"):
-        model_name = osp.basename(model_path).split(".onnx")[0]
+def scrfd_model(model_path: str | Path, backend: str = "ONNXInfer", **kwargs):
+    if backend in ("ONNXInfer", "OpencvInfer", "RKNNInfer"):
+        model_name = osp.basename(model_path).replace(".rknn", "").replace(".onnx", "")
         scrfd_outputs_scale, shape = get_scrfd_outputs(model_name)
         input_shape = kwargs.pop("input_shape", [])
         if not input_shape:
-            input_shape = [3, *shape]
+            input_shape = [3, *shape] if shape else [3, 640, 640]
         inference_backend = ENGINE_BACKENDS.get(backend)(
             weight_file=model_path,
             input_shape=input_shape,
@@ -66,7 +67,7 @@ def scrfd_model(model_path: Union[str, Path], backend: str = "ONNXInfer", **kwar
         )
     else:
         raise ValueError(
-            f"backend must be 'ONNXInfer' or 'OpencvInfer', but got {str(backend)}"
+            f"backend must be 'ONNXInfer', 'OpencvInfer' or 'RKNNInfer', but got {backend!s}"
         )
     model = DETECTORS.get("SCRFD")(infer_backend=inference_backend)
     return model
