@@ -57,6 +57,7 @@ class RKNNInfer:
         self.output_order = output_order
         self.out_shapes = None
         self.input_dtype = np.float32
+        self._is_lite = False
         norm_platform = target_platform.lower().strip()
         if norm_platform in ("rk3588s", "3588s", "3588"):
             norm_platform = "rk3588"
@@ -137,6 +138,7 @@ class RKNNInfer:
 
         # 1. Edge Board Mode (rknn-toolkit-lite2)
         if module_available("rknnlite.api"):
+            self._is_lite = True
             logger.info("Using RKNNLite on-device runtime (core_mask=%s)...", runtime_kwargs.get("core_mask", "auto"))
             from rknnlite.api import RKNNLite
 
@@ -152,6 +154,7 @@ class RKNNInfer:
 
         # 2. Host Mode (rknn-toolkit2)
         else:
+            self._is_lite = False
             from rknn.api import RKNN
 
             self._model = RKNN(verbose=self.verbose)
@@ -252,14 +255,39 @@ class RKNNInfer:
         else:
             inputs = [input]
 
-        try:
-            net_out = self._model.inference(
-                inputs=inputs,
-                data_format=["nchw"] * len(inputs),
-                inputs_pass_through=[1] * len(inputs),
-            )
-        except Exception as exc:
-            raise RKNNRunException(f"RKNN inference error: {exc!s}") from exc
+        if self._is_lite:
+            # On-device RKNNLite: NPU expects NHWC layout for 4D inputs.
+            # Passing data_format='nchw' causes librknnrt to attempt C-level buffer
+            # reallocation/free, triggering SIGABRT / 'free(): invalid pointer'.
+            # We transpose NCHW -> NHWC in NumPy and pass contiguous buffer with data_format=None.
+            converted_inputs = []
+            for x in inputs:
+                if isinstance(x, np.ndarray):
+                    if x.ndim == 4 and x.shape[1] in (1, 3, 4) and x.shape[1] < x.shape[3]:
+                        x = np.ascontiguousarray(x.transpose(0, 2, 3, 1))
+                    elif x.ndim == 3 and x.shape[0] in (1, 3, 4) and x.shape[0] < x.shape[2]:
+                        x = np.ascontiguousarray(x.transpose(1, 2, 0))[None, ...]
+                    else:
+                        x = np.ascontiguousarray(x)
+                converted_inputs.append(x)
+
+            try:
+                net_out = self._model.inference(
+                    inputs=converted_inputs,
+                    data_format=None,
+                    inputs_pass_through=[1] * len(converted_inputs),
+                )
+            except Exception as exc:
+                raise RKNNRunException(f"RKNNLite inference error: {exc!s}") from exc
+        else:
+            try:
+                net_out = self._model.inference(
+                    inputs=inputs,
+                    data_format=["nchw"] * len(inputs),
+                    inputs_pass_through=[1] * len(inputs),
+                )
+            except Exception as exc:
+                raise RKNNRunException(f"RKNN inference error: {exc!s}") from exc
 
         return net_out
 
