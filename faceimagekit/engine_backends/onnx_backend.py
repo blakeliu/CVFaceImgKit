@@ -6,20 +6,26 @@ import numpy as np
 from faceimagekit.core import Registry, module_available
 from faceimagekit.core.exception import ONNXRunException
 
-if not module_available("onnxruntime"):
-    raise ModuleNotFoundError(
-        "onnxtuntime package not found! please 'pip install onnxtuntime'"
-    )
-import onnxruntime
+logger = logging.getLogger(__name__)
+
+
+def _is_onnxruntime_available() -> bool:
+    return module_available("onnxruntime")
 
 
 def get_onnxruntime_providers(device: str = "cpu"):
+    if not _is_onnxruntime_available():
+        raise ModuleNotFoundError(
+            "onnxruntime package not found! Please install with 'pip install onnxruntime' or 'pip install .[cpu]'"
+        )
+    import onnxruntime
+
     if device.lower() not in ("gpu", "cuda"):
         return ["CPUExecutionProvider"]
 
     available_providers = onnxruntime.get_available_providers()
     if "CUDAExecutionProvider" not in available_providers:
-        logging.warning(
+        logger.warning(
             "CUDAExecutionProvider is not available; falling back to CPUExecutionProvider"
         )
         return ["CPUExecutionProvider"]
@@ -29,8 +35,12 @@ def get_onnxruntime_providers(device: str = "cpu"):
 
 class ONNXInfer:
     def __init__(self, weight_file, input_shape=None, output_order=None, **kwargs):
+        if not _is_onnxruntime_available():
+            raise ModuleNotFoundError(
+                "onnxruntime package not found! Please install with 'pip install onnxruntime' or 'pip install .[cpu]'"
+            )
         self._model = None
-        logging.info("ONNXInfer started")
+        logger.info("ONNXInfer started")
         self.input = None
         self.input_dtype = None
         self.input_shape = input_shape  # c h w
@@ -46,6 +56,12 @@ class ONNXInfer:
 
     # warmup
     def prepare(self, device: str = "cpu"):
+        if not _is_onnxruntime_available():
+            raise ModuleNotFoundError(
+                "onnxruntime package not found! Please install with 'pip install onnxruntime' or 'pip install .[cpu]'"
+            )
+        import onnxruntime
+
         providers = get_onnxruntime_providers(device)
         self._model = onnxruntime.InferenceSession(
             self._weight_file, providers=providers
@@ -63,7 +79,7 @@ class ONNXInfer:
             stride, names = int(meta["stride"]), eval(meta["names"])
             self.stride = stride
             self.names = names
-        logging.info("Warming up ONNX Runtime engine...")
+        logger.info("Warming up ONNX Runtime engine...")
 
         self.out_shapes = [e.shape for e in self._model.get_outputs()]
         if not isinstance(self.input.shape[0], int):
@@ -72,14 +88,12 @@ class ONNXInfer:
             bs = self.input.shape[0]
         self.input_shape = (bs, *self.input_shape)
         self.run(np.zeros(self.input_shape, self.input_dtype))
-        # self._model.run(self.output_order,
-        #                 {self.input.name: np.zeros(self.input_shape, self.input_dtype)})
 
     def run(self, input):
         try:
             net_out = self._model.run(self.output_order, {self.input.name: input})
         except Exception as e:
-            raise ONNXRunException(f"onnx run error: {e!s}")
+            raise ONNXRunException(f"onnx run error: {e!s}") from e
         return net_out
 
 
