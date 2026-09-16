@@ -36,19 +36,16 @@ all = [
   "rknn-toolkit2>=2.3.0",
   "onnx<=1.17.0",
   "setuptools<70.0.0",
-  "numpy==1.26.4; python_version >= '3.9'",
-  "numpy==1.24.4; python_version < '3.9'",
-  "opencv-python==4.11.0.*",
+  "numpy",
 ]
-cpu = ["onnxruntime>=1.20.0,<=1.22.0"]
-cuda = ["onnxruntime-gpu>=1.20.0,<=1.22.0"]
+cpu = ["onnxruntime>=1.20.0,<=1.22.0", "opencv-python"]
+cuda = ["onnxruntime-gpu>=1.20.0,<=1.22.0", "opencv-python"]
 dev = ["pytest", "black", "isort", "mypy", "ruff"]
 rknn = [
   "rknn-toolkit2>=2.3.0",
   "onnx<=1.17.0",
   "setuptools<70.0.0",
-  "numpy==1.26.4; python_version >= '3.9'",
-  "numpy==1.24.4; python_version < '3.9'",
+  "numpy==1.26.4",
   "opencv-python==4.11.0.*",
 ]
 
