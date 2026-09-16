@@ -23,7 +23,7 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
   "Topic :: Scientific/Engineering :: Computer Vision",
 ]
-dependencies = ["numba", "numpy", "opencv-python", "scipy"]
+dependencies = ["numba", "numpy", "opencv-python<5", "scipy"]
 dynamic = ["version"]
 
 [project.urls]
@@ -31,11 +31,11 @@ dynamic = ["version"]
 "onnxruntime" = "https://github.com/microsoft/onnxruntime"
 
 [project.optional-dependencies]
-all = ["onnxruntime>=1.20.0,<=1.22.0", "rknn-toolkit2>=2.3.0", "onnx<=1.17.0"]
+all = ["onnxruntime>=1.20.0,<=1.22.0", "rknn-toolkit2>=2.3.0", "onnx<=1.17.0", "setuptools<70.0.0"]
 cpu = ["onnxruntime>=1.20.0,<=1.22.0"]
 cuda = ["onnxruntime-gpu>=1.20.0,<=1.22.0"]
 dev = ["pytest", "black", "isort", "mypy", "ruff"]
-rknn = ["rknn-toolkit2>=2.3.0", "onnx<=1.17.0"]
+rknn = ["rknn-toolkit2>=2.3.0", "onnx<=1.17.0", "setuptools<70.0.0"]
 
 [build-system]
 requires = ["setuptools>=61.0"]
