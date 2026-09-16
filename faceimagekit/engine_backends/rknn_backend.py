@@ -58,6 +58,7 @@ class RKNNInfer:
         self.out_shapes = None
         self.input_dtype = np.float32
         self._is_lite = False
+        self._warmup_outs_keepalive = None
         norm_platform = target_platform.lower().strip()
         if norm_platform in ("rk3588s", "3588s", "3588"):
             norm_platform = "rk3588"
@@ -131,7 +132,9 @@ class RKNNInfer:
         )
 
         runtime_kwargs = kwargs.copy()
-        if "core_mask" in runtime_kwargs and isinstance(runtime_kwargs["core_mask"], str):
+        if "core_mask" in runtime_kwargs and isinstance(
+            runtime_kwargs["core_mask"], str
+        ):
             mask_key = runtime_kwargs["core_mask"].lower().replace("core", "").strip()
             if mask_key in CORE_MASK_MAP:
                 runtime_kwargs["core_mask"] = CORE_MASK_MAP[mask_key]
@@ -139,7 +142,10 @@ class RKNNInfer:
         # 1. Edge Board Mode (rknn-toolkit-lite2)
         if module_available("rknnlite.api"):
             self._is_lite = True
-            logger.info("Using RKNNLite on-device runtime (core_mask=%s)...", runtime_kwargs.get("core_mask", "auto"))
+            logger.info(
+                "Using RKNNLite on-device runtime (core_mask=%s)...",
+                runtime_kwargs.get("core_mask", "auto"),
+            )
             from rknnlite.api import RKNNLite
 
             self._model = RKNNLite(verbose=self.verbose)
@@ -211,6 +217,12 @@ class RKNNInfer:
             dummy_input = np.zeros(full_shape, dtype=np.float32)
             warmup_outs = self.run(dummy_input)
             self.out_shapes = [out.shape for out in warmup_outs]
+            # RKNNLite 2.3.2 workaround:
+            # Keep first inference outputs alive for the lifetime of the RKNN context.
+            # Releasing these ctypes-backed objects immediately can corrupt memory and
+            # cause free(): invalid pointer when another RKNNLite context is created.
+            if self._is_lite:
+                self._warmup_outs_keepalive = warmup_outs
 
     def _build_rknn_from_onnx(self, onnx_file: str):
         """Configure, load ONNX model and build in-memory RKNN graph for simulation."""
@@ -263,9 +275,17 @@ class RKNNInfer:
             converted_inputs = []
             for x in inputs:
                 if isinstance(x, np.ndarray):
-                    if x.ndim == 4 and x.shape[1] in (1, 3, 4) and x.shape[1] < x.shape[3]:
+                    if (
+                        x.ndim == 4
+                        and x.shape[1] in (1, 3, 4)
+                        and x.shape[1] < x.shape[3]
+                    ):
                         x = np.ascontiguousarray(x.transpose(0, 2, 3, 1))
-                    elif x.ndim == 3 and x.shape[0] in (1, 3, 4) and x.shape[0] < x.shape[2]:
+                    elif (
+                        x.ndim == 3
+                        and x.shape[0] in (1, 3, 4)
+                        and x.shape[0] < x.shape[2]
+                    ):
                         x = np.ascontiguousarray(x.transpose(1, 2, 0))[None, ...]
                     else:
                         x = np.ascontiguousarray(x)
