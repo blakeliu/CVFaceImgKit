@@ -37,13 +37,26 @@ uv pip install -e .[cuda]
 # 或 pip install -e .[cuda]
 ```
 
-### RKNN (瑞芯微 Rockchip NPU)
-适用于 x86_64 PC 端模拟器编译/调试，或 RK3588/RK3576/RK3568 等边缘端 NPU 部署：
+### RKNN PC 端模拟器 (rknn-toolkit2)
+适用于 x86_64 PC 主机进行模型转换、量化与模拟运行调试：
 ```shell
 uv pip install -e .[rknn]
 # 或 pip install -e .[rknn]
 ```
-> 注：PC 端推理依赖 `rknn-toolkit2`；边缘板端（如 Linux aarch64）部署可安装对应板端 `rknn-toolkit-lite2`。
+
+### RKNN 开发板 / 边缘端 NPU (rknn-toolkit-lite2)
+适用于 RK3588 / Orange Pi / RK3576 / RK3568 等 Linux aarch64 开发板运行环境：
+
+```shell
+# 1. 安装板端环境依赖（严格锁定 numpy==1.26.4、opencv==4.11.0.* 及 psutil/ruamel.yaml）
+pip install -e .[rknn-lite]
+
+# 2. 手动安装官方 rknn-toolkit-lite2 whl（务必加 --no-deps，避免 pip 从 PyPI 自动拉取 numpy 2.x 覆盖 1.26.4）
+python -m pip install --no-deps path/to/rknn_toolkit_lite2-2.3.2-cp310-cp310-manylinux_2_17_aarch64.whl
+```
+> [!IMPORTANT]
+> 瑞芯微官方 `rknn_toolkit_lite2` 安装包未在 PyPI 托管，其 whl 元数据仅声明 `numpy` 依赖（未设版本上限）。若安装时未加 `--no-deps`，pip 会默认安装最新的 `numpy 2.x`，导致底层 C-API 冲突并引发运行时崩溃。请务必先安装 `.[rknn-lite]` 环境再加 `--no-deps` 安装 whl。
+
 
 ---
 

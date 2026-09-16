@@ -2,7 +2,7 @@
 name = "faceimagekit"
 description = "Python implementation of face detection, face landmark, face segmentation and so on."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 authors = [{ name = "blakeliu", email = "blake120386@163.com" }]
 keywords = ["cv", "face detection", "face landmark", "onnx", "onnxruntime"]
 classifiers = [
@@ -47,6 +47,12 @@ rknn = [
   "setuptools<70.0.0",
   "numpy==1.26.4",
   "opencv-python==4.11.0.*",
+]
+rknn-lite = [
+  "numpy==1.26.4",
+  "opencv-python==4.11.0.*",
+  "psutil",
+  "ruamel.yaml",
 ]
 
 [build-system]
