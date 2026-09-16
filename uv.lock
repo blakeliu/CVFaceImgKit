@@ -269,8 +269,11 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
+    { name = "numpy", version = "1.24.4", source = { registry = "https://mirrors.aliyun.com/pypi/simple" }, marker = "python_full_version < '3.9'" },
+    { name = "numpy", version = "1.26.4", source = { registry = "https://mirrors.aliyun.com/pypi/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "onnx" },
     { name = "onnxruntime" },
+    { name = "opencv-python" },
     { name = "rknn-toolkit2" },
     { name = "setuptools" },
 ]
@@ -295,7 +298,10 @@ dev = [
     { name = "ruff" },
 ]
 rknn = [
+    { name = "numpy", version = "1.24.4", source = { registry = "https://mirrors.aliyun.com/pypi/simple" }, marker = "python_full_version < '3.9'" },
+    { name = "numpy", version = "1.26.4", source = { registry = "https://mirrors.aliyun.com/pypi/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "onnx" },
+    { name = "opencv-python" },
     { name = "rknn-toolkit2" },
     { name = "setuptools" },
 ]
@@ -307,12 +313,18 @@ requires-dist = [
     { name = "mypy", marker = "extra == 'dev'" },
     { name = "numba" },
     { name = "numpy" },
+    { name = "numpy", marker = "python_full_version >= '3.9' and extra == 'all'", specifier = "==1.26.4" },
+    { name = "numpy", marker = "python_full_version >= '3.9' and extra == 'rknn'", specifier = "==1.26.4" },
+    { name = "numpy", marker = "python_full_version < '3.9' and extra == 'all'", specifier = "==1.24.4" },
+    { name = "numpy", marker = "python_full_version < '3.9' and extra == 'rknn'", specifier = "==1.24.4" },
     { name = "onnx", marker = "extra == 'all'", specifier = "<=1.17.0" },
     { name = "onnx", marker = "extra == 'rknn'", specifier = "<=1.17.0" },
     { name = "onnxruntime", marker = "extra == 'all'", specifier = ">=1.20.0,<=1.22.0" },
     { name = "onnxruntime", marker = "extra == 'cpu'", specifier = ">=1.20.0,<=1.22.0" },
     { name = "onnxruntime-gpu", marker = "extra == 'cuda'", specifier = ">=1.20.0,<=1.22.0" },
     { name = "opencv-python", specifier = "<5" },
+    { name = "opencv-python", marker = "extra == 'all'", specifier = "==4.11.0.*" },
+    { name = "opencv-python", marker = "extra == 'rknn'", specifier = "==4.11.0.*" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "rknn-toolkit2", marker = "extra == 'all'", specifier = ">=2.3.0" },
     { name = "rknn-toolkit2", marker = "extra == 'rknn'", specifier = ">=2.3.0" },
