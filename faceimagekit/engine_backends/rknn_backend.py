@@ -260,55 +260,109 @@ class RKNNInfer:
     ) -> list[np.ndarray]:
         """Execute inference.
 
-        Expects NCHW pre-normalized float32 tensor(s). Passes through directly
-        without duplicate normalization.
+        Supports both raw uint8 images and pre-normalized float32 tensors.
+        For models with baked-in mean_values and std_values, pre-normalized float32
+        inputs are automatically denormalized back to uint8 NHWC so the hardware NPU
+        handles mean/std normalization natively without buffer type misinterpretation.
         """
         if isinstance(input, (list, tuple)):
             inputs = list(input)
         else:
             inputs = [input]
 
-        if self._is_lite:
-            # On-device RKNNLite: NPU expects NHWC layout for 4D inputs.
-            # Passing data_format='nchw' causes librknnrt to attempt C-level buffer
-            # reallocation/free, triggering SIGABRT / 'free(): invalid pointer'.
-            # We transpose NCHW -> NHWC in NumPy and pass contiguous buffer with data_format=None.
-            converted_inputs = []
-            for x in inputs:
-                if isinstance(x, np.ndarray):
-                    if (
-                        x.ndim == 4
-                        and x.shape[1] in (1, 3, 4)
-                        and x.shape[1] < x.shape[3]
-                    ):
-                        x = np.ascontiguousarray(x.transpose(0, 2, 3, 1))
-                    elif (
-                        x.ndim == 3
-                        and x.shape[0] in (1, 3, 4)
-                        and x.shape[0] < x.shape[2]
-                    ):
-                        x = np.ascontiguousarray(x.transpose(1, 2, 0))[None, ...]
+        converted_inputs = []
+        pass_through_list = []
+        for idx, x in enumerate(inputs):
+            if isinstance(x, np.ndarray):
+                # 1. Ensure 4D (batch dimension)
+                if x.ndim == 3:
+                    if x.shape[0] in (1, 3, 4) and x.shape[0] < x.shape[2]:
+                        x = x[None, ...]
                     else:
-                        x = np.ascontiguousarray(x)
-                converted_inputs.append(x)
+                        x = x[None, ...]
 
-            try:
-                net_out = self._model.inference(
-                    inputs=converted_inputs,
-                    data_format=None,
-                    inputs_pass_through=[1] * len(converted_inputs),
+                # 2. Transpose NCHW -> NHWC if needed (RKNPU native layout is NHWC)
+                if x.ndim == 4 and x.shape[1] in (1, 3, 4) and x.shape[1] < x.shape[3]:
+                    x = x.transpose(0, 2, 3, 1)
+
+                # 3. Check mean/std configuration
+                mean_list = (
+                    self.mean_values[idx]
+                    if idx < len(self.mean_values)
+                    else self.mean_values[0]
                 )
+                std_list = (
+                    self.std_values[idx]
+                    if idx < len(self.std_values)
+                    else self.std_values[0]
+                )
+                mean = np.array(mean_list, dtype=np.float32)
+                std = np.array(std_list, dtype=np.float32)
+                has_norm = not (np.allclose(mean, 0.0) and np.allclose(std, 1.0))
+
+                # 4. Handle dtypes & normalization
+                if np.issubdtype(x.dtype, np.floating) and has_norm:
+                    # Model has mean/std baked in -> denormalize float [-1..1] back to uint8 [0..255]
+                    # The NPU hardware handles normalization automatically at 0 CPU cost.
+                    x = np.clip(np.round(x * std + mean), 0, 255).astype(np.uint8)
+                    x = np.ascontiguousarray(x)
+                    pass_through = 0
+                elif np.issubdtype(x.dtype, np.integer):
+                    # Already raw uint8 / integer image
+                    x = np.ascontiguousarray(x)
+                    pass_through = 0
+                else:
+                    # Float input without mean/std: pass through directly
+                    x = np.ascontiguousarray(x.astype(np.float32))
+                    pass_through = 1
+
+                converted_inputs.append(x)
+                pass_through_list.append(pass_through)
+            else:
+                converted_inputs.append(x)
+                pass_through_list.append(0)
+
+        all_pt_zero = all(pt == 0 for pt in pass_through_list)
+
+        if self._is_lite:
+            # On-device RKNNLite:
+            # - When all pass_through are 0 (standard uint8 path), data_format=None defaults
+            #   to NHWC and avoids librknnrt's C-level buffer reallocation/free crash.
+            # - When float pass_through is needed, explicit data_type='float32' ensures
+            #   librknnrt allocates 4 bytes/element instead of default 1 byte uint8.
+            try:
+                if all_pt_zero:
+                    net_out = self._model.inference(inputs=converted_inputs)
+                else:
+                    net_out = self._model.inference(
+                        inputs=converted_inputs,
+                        data_type="float32",
+                        data_format=None,
+                        inputs_pass_through=pass_through_list,
+                    )
             except Exception as exc:
                 raise RKNNRunException(f"RKNNLite inference error: {exc!s}") from exc
         else:
+            # PC Simulator (rknn-toolkit2):
             try:
-                net_out = self._model.inference(
-                    inputs=inputs,
-                    data_format=["nchw"] * len(inputs),
-                    inputs_pass_through=[1] * len(inputs),
-                )
+                if all_pt_zero:
+                    net_out = self._model.inference(
+                        inputs=converted_inputs,
+                        data_format=["nhwc"] * len(converted_inputs),
+                    )
+                else:
+                    net_out = self._model.inference(
+                        inputs=converted_inputs,
+                        data_format=["nhwc"] * len(converted_inputs),
+                        inputs_pass_through=pass_through_list,
+                    )
             except Exception as exc:
                 raise RKNNRunException(f"RKNN inference error: {exc!s}") from exc
+
+        if net_out is None:
+            raise RKNNRunException(
+                "RKNN inference returned None (inference failed, check logs)"
+            )
 
         return net_out
 
