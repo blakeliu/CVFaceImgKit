@@ -16,13 +16,13 @@ def _is_rknn_available() -> bool:
 
 
 CORE_MASK_MAP: dict[str, int] = {
-    "auto": 0,
-    "0": 1,
-    "1": 2,
-    "2": 4,
-    "0_1": 3,
-    "0_1_2": 7,
-    "all": 7,
+    "auto": 0x0,
+    "0": 0x1,
+    "1": 0x2,
+    "2": 0x4,
+    "0_1": 0x3,
+    "0_1_2": 0x7,
+    "all": 0xFFFF,
 }
 
 
@@ -58,7 +58,6 @@ class RKNNInfer:
         self.out_shapes = None
         self.input_dtype = np.float32
         self._is_lite = False
-        self._warmup_outs_keepalive = None
         norm_platform = target_platform.lower().strip()
         if norm_platform in ("rk3588s", "3588s", "3588"):
             norm_platform = "rk3588"
@@ -92,7 +91,8 @@ class RKNNInfer:
 
         self.__dict__.update(**kwargs)
 
-    def __del__(self):
+    def release(self):
+        """Release underlying RKNN/RKNNLite C and NPU runtime resources."""
         if self._model is not None:
             if hasattr(self._model, "release"):
                 try:
@@ -101,12 +101,18 @@ class RKNNInfer:
                     logger.debug("Failed to release model resources: %s", exc)
             self._model = None
 
-    def prepare(self, device: str = "cpu", **kwargs):
+    def __del__(self):
+        self.release()
+
+    def prepare(self, device: str = "cpu", warmup: bool = False, **kwargs):
         """Initialize RKNN runtime environment.
 
         Args:
             device: 'cpu' / 'simulator' for PC host simulation,
                     or hardware platform like 'rk3588', 'rk3588s', 'rk3576', 'rk3568', 'npu'.
+            warmup: Whether to execute dummy warmup inference. Defaults to False.
+                    In multi-model pipelines on-device (RKNNLite), all models must complete
+                    init_runtime before ANY model executes inference to avoid NPU context conflict.
             **kwargs: Extra runtime parameters like core_mask (e.g. 'all', 'auto', '0', '0_1_2', 7).
         """
         dev = device.lower().strip()
@@ -207,22 +213,17 @@ class RKNNInfer:
                     f"Unsupported model file format: '{self._weight_file}'. Expected '.rknn' or '.onnx'."
                 )
 
-        # Warmup and out shapes calculation
-        logger.info("Warming up RKNN Runtime engine...")
-        if self.input_shape is not None:
-            if len(self.input_shape) == 3:
-                full_shape = (1, *self.input_shape)
-            else:
-                full_shape = tuple(self.input_shape)
-            dummy_input = np.zeros(full_shape, dtype=np.float32)
-            warmup_outs = self.run(dummy_input)
-            self.out_shapes = [out.shape for out in warmup_outs]
-            # RKNNLite 2.3.2 workaround:
-            # Keep first inference outputs alive for the lifetime of the RKNN context.
-            # Releasing these ctypes-backed objects immediately can corrupt memory and
-            # cause free(): invalid pointer when another RKNNLite context is created.
-            if self._is_lite:
-                self._warmup_outs_keepalive = warmup_outs
+        # Warmup and out shapes calculation (only if explicitly requested and not on lite)
+        if warmup and not self._is_lite:
+            logger.info("Warming up RKNN Runtime engine...")
+            if self.input_shape is not None:
+                if len(self.input_shape) == 3:
+                    full_shape = (1, *self.input_shape)
+                else:
+                    full_shape = tuple(self.input_shape)
+                dummy_input = np.zeros(full_shape, dtype=np.float32)
+                warmup_outs = self.run(dummy_input)
+                self.out_shapes = [out.shape for out in warmup_outs]
 
     def _build_rknn_from_onnx(self, onnx_file: str):
         """Configure, load ONNX model and build in-memory RKNN graph for simulation."""

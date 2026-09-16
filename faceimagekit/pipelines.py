@@ -20,6 +20,12 @@ class _BasePipeline(ABC):
     def predict(x, *args, **kwargs):
         raise NotImplementedError()
 
+    def release(self):
+        """Release underlying pipeline resources."""
+
+    def __del__(self):
+        self.release()
+
 
 EngineType = Literal["ONNXInfer", "OpencvInfer", "RKNNInfer"]
 DeviceType = Literal["cpu", "gpu", "npu", "rk3588", "rk3588s", "rk3576", "rk3568"]
@@ -69,6 +75,24 @@ class FaceLandmarkPipeline(_BasePipeline):
     def prepare(self, **kwargs):
         self._det_infer.prepare(device=self.device, **kwargs)
         self._ld_infer.prepare(device=self.device, **kwargs)
+
+    def release(self):
+        """Release pipeline models in reverse initialization order."""
+        if hasattr(self, "_ld_infer") and self._ld_infer is not None:
+            if hasattr(self._ld_infer, "release"):
+                self._ld_infer.release()
+            elif hasattr(getattr(self._ld_infer, "session", None), "release"):
+                self._ld_infer.session.release()
+            self._ld_infer = None
+        if hasattr(self, "_det_infer") and self._det_infer is not None:
+            if hasattr(self._det_infer, "release"):
+                self._det_infer.release()
+            elif hasattr(getattr(self._det_infer, "session", None), "release"):
+                self._det_infer.session.release()
+            self._det_infer = None
+
+    def __del__(self):
+        self.release()
 
     def lds_infer(self, img, boxes: list | None = None):
         keypoints, _scores = self._ld_infer.predict(img, boxes)

@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import os.path as osp
-from typing import Sequence
+from collections.abc import Sequence
 
 import cv2
 import numpy as np
@@ -185,6 +186,10 @@ def _json_save_path(save_path: str, img_path: str, total_files: int) -> str:
 
 
 def main():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
     args = parse_args()
     infer = FaceLandmarkPipeline(
         args.det_weight_path,
@@ -200,43 +205,47 @@ def main():
         prepare_kwargs["core_mask"] = args.core_mask
     try:
         infer.prepare(**prepare_kwargs)
+        for fp in args.file_list:
+            img = cv2.imread(str(fp), cv2.IMREAD_COLOR)
+            if img is None:
+                raise FileExistsError(f"opencv read {fp!s} failed")
+
+            t_infer = Timer()
+            face_list = infer.predict(
+                img, score_threshold=args.threshold, nms_threshold=args.nms
+            )
+            print(f"FaceLandmarkPipeline infer time: {t_infer.time()} s")
+            show_img = draw_pipeline_faces(img, face_list)
+            if args.imshow:
+                show_name = osp.basename(fp)
+                if min(show_img.shape[0:2]) > 1080:
+                    h, w = show_img.shape[0:2]
+                    resize = (int(w * 0.5), int(h * 0.5))
+                    resize_img = cv2.resize(
+                        show_img, resize, interpolation=cv2.INTER_AREA
+                    )
+                    cv2.imshow(show_name, resize_img)
+                else:
+                    cv2.imshow(show_name, show_img)
+                cv2.waitKey(0)
+            if args.save_path:
+                if not osp.exists(args.save_path):
+                    os.makedirs(args.save_path)
+                cv2.imwrite(osp.join(args.save_path, osp.basename(fp)), show_img)
+                json_path = _json_save_path(args.save_path, fp, len(args.file_list))
+                if face_list:
+                    face = max(face_list, key=_face_area)
+                    face_data = _face_to_json(face, img.shape)
+                else:
+                    face_data = {"box": [], "lds": []}
+                with open(json_path, "w", encoding="utf-8") as f:
+                    json.dump(face_data, f, ensure_ascii=False, indent=2)
     except Exception as e:
         raise RuntimeError(f"FaceLandmarkPipeline infer error: {e!s}") from e
-
-    for fp in args.file_list:
-        img = cv2.imread(str(fp), cv2.IMREAD_COLOR)
-        if img is None:
-            raise FileExistsError(f"opencv read {fp!s} failed")
-
-        t_infer = Timer()
-        face_list = infer.predict(
-            img, score_threshold=args.threshold, nms_threshold=args.nms
-        )
-        print(f"FaceLandmarkPipeline infer time: {t_infer.time()} s")
-        show_img = draw_pipeline_faces(img, face_list)
-        if args.imshow:
-            show_name = osp.basename(fp)
-            if min(show_img.shape[0:2]) > 1080:
-                h, w = show_img.shape[0:2]
-                resize = (int(w * 0.5), int(h * 0.5))
-                resize_img = cv2.resize(show_img, resize, interpolation=cv2.INTER_AREA)
-                cv2.imshow(show_name, resize_img)
-            else:
-                cv2.imshow(show_name, show_img)
-            cv2.waitKey(0)
-        if args.save_path:
-            if not osp.exists(args.save_path):
-                os.makedirs(args.save_path)
-            cv2.imwrite(osp.join(args.save_path, osp.basename(fp)), show_img)
-            json_path = _json_save_path(args.save_path, fp, len(args.file_list))
-            if face_list:
-                face = max(face_list, key=_face_area)
-                face_data = _face_to_json(face, img.shape)
-            else:
-                face_data = {"box": [], "lds": []}
-            with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(face_data, f, ensure_ascii=False, indent=2)
+    finally:
+        infer.release()
 
 
 if __name__ == "__main__":
     main()
+

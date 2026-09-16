@@ -53,3 +53,9 @@ class Detector(metaclass=ABCMeta):
 
     def classes(self):
         raise NotImplementedError("must implement classes property!")
+
+    def release(self):
+        """Release underlying inference engine backend resources."""
+        if hasattr(self.session, "release"):
+            self.session.release()
+

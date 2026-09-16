@@ -244,12 +244,6 @@ rknn-lite = [
     { name = "psutil" },
     { name = "ruamel-yaml" },
 ]
-rknnlite = [
-    { name = "numpy" },
-    { name = "opencv-python" },
-    { name = "psutil" },
-    { name = "ruamel-yaml" },
-]
 
 [package.metadata]
 requires-dist = [
@@ -261,7 +255,6 @@ requires-dist = [
     { name = "numpy", marker = "extra == 'all'" },
     { name = "numpy", marker = "extra == 'rknn'", specifier = "==1.26.4" },
     { name = "numpy", marker = "extra == 'rknn-lite'", specifier = "==1.26.4" },
-    { name = "numpy", marker = "extra == 'rknnlite'", specifier = "==1.26.4" },
     { name = "onnx", marker = "extra == 'all'", specifier = "<=1.17.0" },
     { name = "onnx", marker = "extra == 'rknn'", specifier = "<=1.17.0" },
     { name = "onnxruntime", marker = "extra == 'all'", specifier = ">=1.20.0,<=1.22.0" },
@@ -272,20 +265,17 @@ requires-dist = [
     { name = "opencv-python", marker = "extra == 'cuda'" },
     { name = "opencv-python", marker = "extra == 'rknn'", specifier = "==4.11.0.*" },
     { name = "opencv-python", marker = "extra == 'rknn-lite'", specifier = "==4.11.0.*" },
-    { name = "opencv-python", marker = "extra == 'rknnlite'", specifier = "==4.11.0.*" },
     { name = "psutil", marker = "extra == 'rknn-lite'" },
-    { name = "psutil", marker = "extra == 'rknnlite'" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "rknn-toolkit2", marker = "extra == 'all'", specifier = ">=2.3.0" },
     { name = "rknn-toolkit2", marker = "extra == 'rknn'", specifier = ">=2.3.0" },
     { name = "ruamel-yaml", marker = "extra == 'rknn-lite'" },
-    { name = "ruamel-yaml", marker = "extra == 'rknnlite'" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "scipy" },
     { name = "setuptools", marker = "extra == 'all'", specifier = "<70.0.0" },
     { name = "setuptools", marker = "extra == 'rknn'", specifier = "<70.0.0" },
 ]
-provides-extras = ["all", "cpu", "cuda", "dev", "rknn", "rknn-lite", "rknnlite"]
+provides-extras = ["all", "cpu", "cuda", "dev", "rknn", "rknn-lite"]
 
 [[package]]
 name = "fast-histogram"
